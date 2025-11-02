@@ -1,90 +1,86 @@
 import os
 import logging
-
-from pprint import pprint
-import requests
 from dotenv import load_dotenv
+
 from qargo_auth import QargoAuth
+from qargo_client import QargoClient
+from resource_matcher import ResourceMatcher
 
-from classes.resource_match import ResourceMatch
-
+# Configure logging
 logging.basicConfig(
-    level=logging.DEBUG, 
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-MASTER_DATA_CLIENT_ID = os.getenv("MASTER_DATA_CLIENT_ID")
-MASTER_DATA_CLIENT_SECRET = os.getenv("MASTER_DATA_CLIENT_SECRET")
 
-
-qargo_auth = QargoAuth(client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
-own_api_token = qargo_auth.get_token()
-
-master_data_auth = QargoAuth(client_id=MASTER_DATA_CLIENT_ID, client_secret=MASTER_DATA_CLIENT_SECRET)
-master_data_api_token = master_data_auth.get_token()
-
-def get_resources(api_token):
-    resources_url = "https://api.qargo.io/v1/resources/resource"
-    headers = {"Authorization": f"Bearer {api_token}"}
-    cursor = None
-    recourses = []
+class ResourceSyncService:
+    """Service for synchronizing resources between local and master data systems."""
     
-    while True:
-        response = requests.get(resources_url, headers=headers, params={"cursor": cursor})
-        data = response.json()
-        recourses += data["items"]
-        cursor = data.get("next_cursor", None)
+    def __init__(self, local_client: QargoClient, master_client: QargoClient):
+        self.local_client = local_client
+        self.master_client = master_client
+    
+    def sync_resources(self):
+        """
+        Main synchronization flow:
+        1. Fetch resources from both systems
+        2. Match local resources to master resources
+        3. Return matched resource mappings
+        """
+        logger.info("Starting resource synchronization...")
         
-        if not cursor:
-            return recourses
+        try:
+            # Fetch resources from both systems
+            local_resources = self.local_client.get_resources()
+            master_resources = self.master_client.get_resources()
+            
+            # Match resources
+            matcher = ResourceMatcher(master_resources)
+            matches = matcher.match_all(local_resources)
+            
+            # Log summary
+            matched_count = sum(1 for m in matches if m.external_id)
+            unmatched_count = len(matches) - matched_count
+            
+            logger.info(f"Synchronization complete: {matched_count} matched, {unmatched_count} unmatched")
+            
+            return matches
+            
+        except Exception as e:
+            logger.error(f"Resource synchronization failed: {e}", exc_info=True)
+            raise
+
+
+def main():
+    """Entry point for the resource synchronization tool."""
+    # load and validate environment variables
+    load_dotenv()
+    client_id = os.getenv("CLIENT_ID")
+    client_secret = os.getenv("CLIENT_SECRET")
+    master_data_client_id = os.getenv("MASTER_DATA_CLIENT_ID")
+    master_data_client_secret = os.getenv("MASTER_DATA_CLIENT_SECRET")
+    
+    if not all([client_id, client_secret, master_data_client_id, master_data_client_secret]):
+        logger.error("Missing required environment variables")
+        raise ValueError("CLIENT_ID, CLIENT_SECRET, MASTER_DATA_CLIENT_ID, and MASTER_DATA_CLIENT_SECRET must be set")
+    
+    # auth and create clients
+    logger.info("Authenticating with Qargo API...")
+    local_auth = QargoAuth(client_id=client_id, client_secret=client_secret)
+    master_auth = QargoAuth(client_id=master_data_client_id, client_secret=master_data_client_secret)
+    
+    local_token = local_auth.get_token()
+    master_token = master_auth.get_token()
+    
+    # context managers for proper resource cleanup
+    with QargoClient(local_token) as local_client, \
+         QargoClient(master_token) as master_client:
         
-def find_match(local, master_list):
-    "compare resources on custom_field and name attributes to find matches"
-    cf_local = local.get("custom_fields", {})
-    name_local = local.get("name", "").strip().lower()
-
-    # Match by employee number or fleetno
-    for m in master_list:
-        cf_master = m.get("custom_fields", {})
-        if cf_local.get("employeenumber") and cf_local["employeenumber"] == cf_master.get("employeenumber"):
-            return m.get("id")
-        if cf_local.get("fleetno") and cf_local["fleetno"] == cf_master.get("fleetno"):
-            return m.get("id")
-
-    # Match by license plate (truck/van/tractor)
-    for key in ("truck", "van", "tractor"):
-        if key in local and local[key].get("license_plate"):
-            lp = local[key]["license_plate"].replace(" ", "").lower()
-            for m in master_list:
-                if key in m and m[key].get("license_plate", "").replace(" ", "").lower() == lp:
-                    return m.get("id")
-
-    # Match by normalized name (last resort)
-    for m in master_list:
-        if name_local == m.get("name", "").strip().lower():
-            return m.get("id")
-
-    return None
-
-own_resources = get_resources(own_api_token)
-master_resources= get_resources(master_data_api_token)
-
-def match_resources(local_resources, master_resources):
-
-    matches: list[ResourceMatch] = []
-    for recourse in local_resources:
-        match_id = find_match(recourse, master_resources)
-        if not match_id:
-            logger.warning(f"No match found for resourece with id: {recourse["id"]}")
-        match = ResourceMatch(internal_id=recourse["id"], external_id=match_id)
-        matches.append(match)
-    return matches
-
-matches = match_resources(own_resources, master_resources)
-print(matches[:10])
+        # Run synchronization
+        service = ResourceSyncService(local_client, master_client)
+        matches = service.sync_resources()
 
 
+if __name__ == "__main__":
+    main()
