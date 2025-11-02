@@ -17,6 +17,42 @@ class QargoClient:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {api_token}"})
     
+    def _paginated_get(self, url: str, params: dict = None) -> list[dict]:
+        """
+        Fetch all items from a paginated API endpoint.
+        
+        Args:
+            url: API endpoint URL
+            params: Additional query parameters (optional)
+            
+        Returns:
+            List of all items from paginated response
+            
+        Raises:
+            requests.RequestException: If API request fails
+        """
+        items = []
+        cursor: Optional[str] = None
+        base_params = params or {}
+        
+        try:
+            while True:
+                request_params = {**base_params, "cursor": cursor} if cursor else base_params
+                response = self.session.get(url, params=request_params)
+                response.raise_for_status()
+                
+                data = response.json()
+                items.extend(data.get("items", []))
+                cursor = data.get("next_cursor")
+                
+                if not cursor:
+                    break
+            
+            return items
+        except requests.RequestException as e:
+            logger.error(f"Failed to fetch from {url}: {e}")
+            raise
+
     def get_resources(self) -> list[dict]:
         """
         Fetch all resources from the API using cursor-based pagination.
@@ -28,64 +64,27 @@ class QargoClient:
             requests.RequestException: If API request fails
         """
         url = f"{self.BASE_URL}/resources/resource"
-        resources = []
-        cursor: Optional[str] = None
-            
-        try:
-            while True:
-                params = {"cursor": cursor} if cursor else {}
-                response = self.session.get(url, params=params)
-                response.raise_for_status()
-                
-                data = response.json()
-                resources.extend(data.get("items", []))
-                
-                cursor = data.get("next_cursor")
-                if not cursor:
-                    break
-            
-            logger.info(f"Retrieved {len(resources)} resources from API")
-            return resources
-            
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch resources: {e}")
-            raise
-    
-    def get_unavailabilities(self, resource_id: UUID):
+        resources = self._paginated_get(url)
+        logger.info(f"Retrieved {len(resources)} resources from API")
+        return resources
+
+    def get_unavailabilities(self, resource_id: UUID) -> list[dict]:
         """
-        Fetch all unavailabilities of a resources from the API using cursor-based pagination.
+        Fetch all unavailabilities of a resource from the API using cursor-based pagination.
         
         Args:
-            resource_id (str): UUID of the resource whose unavailabilities should be fetched.            
+            resource_id: UUID of the resource whose unavailabilities should be fetched.
+            
         Returns:
-            List of unavailabilities dictionaries
+            List of unavailability dictionaries
             
         Raises:
             requests.RequestException: If API request fails
         """
         url = f"{self.BASE_URL}/resources/resource/{resource_id}/unavailability"
-        unavailabilities = []
-        cursor: Optional[str] = None 
-        
-        try:
-            while True:
-                params = {"cursor": cursor} if cursor else {}
-                response = self.session.get(url, params=params)
-                response.raise_for_status()
-                
-                data = response.json()
-                unavailabilities.extend(data.get("items", []))
-                
-                cursor = data.get("next_cursor")
-                if not cursor:
-                    break
-            
-            logger.info(f"Retrieved {len(unavailabilities)} unavailabilities from API")
-            return unavailabilities
-            
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch unavailabilities: {e}")
-            raise
+        unavailabilities = self._paginated_get(url)
+        logger.info(f"Retrieved {len(unavailabilities)} unavailabilities for resource {resource_id}")
+        return unavailabilities
         
     def create_unavailability(self, unavailability: Unavailability):
         url = f"{self.BASE_URL}/resources/resource/{unavailability.internal_id}/unavailability"
