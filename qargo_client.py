@@ -86,10 +86,11 @@ class QargoClient:
         logger.info(f"Retrieved {len(unavailabilities)} unavailabilities for resource {resource_id}")
         return unavailabilities
         
-    def create_unavailability(self, unavailability: Unavailability):
-        url = f"{self.BASE_URL}/resources/resource/{unavailability.internal_id}/unavailability"
+    def create_unavailability(self, unavailability: Unavailability) -> None:
+        url = f"{self.BASE_URL}/resources/resource/{unavailability.resource_id}/unavailability"
         
         payload = {
+            "external_id": str(unavailability.external_id),
             "start_time": unavailability.start_time,
             "end_time": unavailability.end_time,
             "reason": unavailability.reason,
@@ -99,7 +100,7 @@ class QargoClient:
         try:
             response = self.session.post(url, json=payload)
             response.raise_for_status()
-            logger.info(f"Created unavailability for resource {unavailability.internal_id}")
+            logger.info(f"Created unavailability for resource {unavailability.resource_id}")
             return response.json()
         except requests.RequestException as e:
             logger.error(f"Failed to create unavailability: {e}")

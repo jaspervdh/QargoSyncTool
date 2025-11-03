@@ -1,6 +1,5 @@
 import logging
 from typing import Optional
-from classes.resource_match import ResourceMatch
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +90,7 @@ class ResourceMatcher:
         
         return None
     
-    def match_all(self, local_resources: list[dict]) -> list[ResourceMatch]:
+    def match_all(self, local_resources: list[dict]) -> dict:
         """
         Match all local resources against master resources.
         
@@ -99,20 +98,16 @@ class ResourceMatcher:
             local_resources: List of local resource dictionaries
             
         Returns:
-            List of ResourceMatch objects containing ID mappings
+            Dictionary mapping local resource IDs to matched resource IDs from external API       
         """
-        matches = []
+        matches = {}
         
         for resource in local_resources:
             match_id = self.find_match(resource)
-            match = ResourceMatch(
-                internal_id=resource["id"],
-                external_id=match_id
-            )
-            matches.append(match)
+            matches[resource["id"]] = match_id
         
         logger.info(
-            f"Matched {sum(1 for m in matches if m.external_id)} out of {len(matches)} resources"
+            f"Matched {len(matches)} out of {len(local_resources)} resources"
         )
         
         return matches
