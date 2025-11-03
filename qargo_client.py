@@ -86,7 +86,7 @@ class QargoClient:
         logger.info(f"Retrieved {len(unavailabilities)} unavailabilities for resource {resource_id}")
         return unavailabilities
         
-    def create_unavailability(self, unavailability: Unavailability) -> None:
+    def create_unavailability(self, unavailability: Unavailability) -> dict:
         url = f"{self.BASE_URL}/resources/resource/{unavailability.resource_id}/unavailability"
         
         payload = {
@@ -105,6 +105,46 @@ class QargoClient:
         except requests.RequestException as e:
             logger.error(f"Failed to create unavailability: {e}")
             raise
+            
+    def update_unavailability(self, unavailability: Unavailability) -> dict:
+        if not unavailability.id:
+            raise ValueError("Cannot update unavailability without an ID")
+
+        url = f"{self.BASE_URL}/resources/resource/{unavailability.resource_id}/unavailability/{unavailability.id}"
+        
+        payload = {
+            "external_id": str(unavailability.external_id),
+            "start_time": unavailability.start_time,
+            "end_time": unavailability.end_time,
+            "reason": unavailability.reason,
+            "description": unavailability.description
+        }
+        
+        try:
+            response = self.session.put(url, json=payload)
+            response.raise_for_status()
+            logger.info(f"Updated unavailability {unavailability.id} for resource {unavailability.resource_id}")
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"Failed to update unavailability: {e}")
+            raise
+
+    def _delete_item(self, url: str, item_id: UUID) -> None:
+        url = f"{url}/{item_id}"
+        
+        try:
+            response = self.session.delete(url)
+            response.raise_for_status()
+            logger.info(f"Deleted item with id {item_id}")
+        except requests.RequestException as e:
+            logger.error(f"Failed to delete item: {e}")
+            raise
+    
+    def delete_unavailability(self, resource_id: UUID, unavailability_id: UUID) -> None:
+        url = f"{self.BASE_URL}/resources/resource/{resource_id}/unavailability"
+        response = self._delete_item(url, unavailability_id)
+        logger.info(f"Deleted unavailability {unavailability_id} for resource {resource_id}")
+
     
     def __enter__(self):
         return self

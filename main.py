@@ -94,7 +94,7 @@ class ResourceSyncService:
         # DELETE (in local but not matched in master)
         for local_unavail in unmatched_local:
             if local_unavail.id:
-                self.local_repo.d`elete(internal_id, local_unavail.id)
+                self.local_repo.delete(internal_id, local_unavail.id)
                 stats["deleted"] += 1
                 logger.debug(f"Deleted unavailability: {local_unavail.id}")
         
