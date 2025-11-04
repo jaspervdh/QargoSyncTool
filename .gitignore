@@ -1,0 +1,8 @@
+# env and tokens
+.env
+.qargo_token.json
+
+# python
+__pycache__/
+
+.vscode/
