@@ -153,11 +153,6 @@ class QargoClient:
         url = f"{self.BASE_URL}/resources/resource/{resource_id}/unavailability"
         self._delete_item(url, unavailability_id)
         logger.info(f"Deleted unavailability {unavailability_id} for resource {resource_id}")
-
-
-    def get(self, url):
-        res = self.session.get(url)
-        print(res)
         
     def __enter__(self):
         return self
