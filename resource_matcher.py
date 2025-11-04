@@ -104,7 +104,8 @@ class ResourceMatcher:
         
         for resource in local_resources:
             match_id = self.find_match(resource)
-            matches[resource["id"]] = match_id
+            if match_id: 
+                matches[resource["id"]] = match_id
         
         logger.info(
             f"Matched {len(matches)} out of {len(local_resources)} resources"

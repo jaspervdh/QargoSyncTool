@@ -1,4 +1,5 @@
 import logging
+from sqlite3.dbapi2 import Timestamp
 import requests
 from typing import Optional
 from uuid import UUID
@@ -68,13 +69,15 @@ class QargoClient:
         logger.info(f"Retrieved {len(resources)} resources from API")
         return resources
 
-    def get_unavailabilities(self, resource_id: UUID) -> list[dict]:
+    def get_unavailabilities(self, resource_id: UUID, start_time: Timestamp = None, end_time: Timestamp = None) -> list[dict]:
         """
         Fetch all unavailabilities of a resource from the API using cursor-based pagination.
         
         Args:
-            resource_id: UUID of the resource whose unavailabilities should be fetched.
-            
+            resource_id (UUID): UUID of the resource whose unavailabilities should be fetched.
+            start_time (datetime, optional): Filter to fetch unavailabilities after this time.
+            end_time (datetime, optional): Filter to fetch unavailabilities before this time.
+                        
         Returns:
             List of unavailability dictionaries
             
@@ -82,7 +85,13 @@ class QargoClient:
             requests.RequestException: If API request fails
         """
         url = f"{self.BASE_URL}/resources/resource/{resource_id}/unavailability"
-        unavailabilities = self._paginated_get(url)
+        
+        params = {
+            "start_time": start_time,
+            "end_time": end_time
+        }
+        
+        unavailabilities = self._paginated_get(url, params)
         logger.info(f"Retrieved {len(unavailabilities)} unavailabilities for resource {resource_id}")
         return unavailabilities
         
