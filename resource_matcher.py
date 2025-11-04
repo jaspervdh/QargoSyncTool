@@ -10,14 +10,22 @@ class ResourceMatcher:
     def __init__(self, master_resources: list[dict]):
         self.master_resources = master_resources
         
+        # represents priority
+        self.match_strategies = [
+            self._match_by_custom_fields,
+            self._match_by_license_plate,
+            self._match_by_name
+        ]
+        
     def find_match(self, local_resource: dict) -> Optional[str]:
         """
         Compare a local resource against master resources to find a match.
         
-        Matching strategy (in priority order):
-        1. Custom fields: employeenumber or fleetno
-        2. License plate: truck, van, or tractor
-        3. Name: normalized case-insensitive comparison
+        Tries matching strategies in priority order:
+        1. Custom fields (employeenumber, fleetno)
+        2. License plate (truck, van, tractor)
+        3. Name (case-insensitive)
+        (based on self.match_strategies)
         
         Args:
             local_resource: The local resource dictionary to match
@@ -25,19 +33,16 @@ class ResourceMatcher:
         Returns:
             The ID of the matching master resource, or None if no match found
         """
-        match_id = (
-            self._match_by_custom_fields(local_resource)
-            or self._match_by_license_plate(local_resource)
-            or self._match_by_name(local_resource)
+        for strategy in self.match_strategies:
+            if match_id := strategy(local_resource):
+                return match_id
+        
+        # No match found
+        logger.warning(
+            f"No match found for resource: id={local_resource.get('id')}, "
+            f"name={local_resource.get('name', 'N/A')}"
         )
-        
-        if not match_id:
-            logger.warning(
-                f"No match found for resource: id={local_resource.get('id')}, "
-                f"name={local_resource.get('name', 'N/A')}"
-            )
-        
-        return match_id
+        return None
     
     def _match_by_custom_fields(self, local: dict) -> Optional[str]:
         """Match by employeenumber or fleetno custom fields."""
