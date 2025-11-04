@@ -20,32 +20,27 @@ class ResourceSyncService:
     """Service for synchronizing resources between local and master data systems."""
     
     def __init__(self, local_client: QargoClient, master_client: QargoClient):
-        self.local_repo = UnavailabilityRepository(local_client)
-        self.master_repo = UnavailabilityRepository(master_client)
+        self.local_repo = UnavailabilityRepository(local_client, internal=True)
+        self.master_repo = UnavailabilityRepository(master_client, internal=False)
         local_resources = self.local_repo.client.get_resources()
         master_resources = self.master_repo.client.get_resources()
         
+        print(local_resources)
+        
         matcher = ResourceMatcher(master_resources)
         self.resource_matches = matcher.match_all(local_resources)
-        
-    def _unavailabilities_match(self, unavail1: Unavailability, unavail2: Unavailability) -> bool:
-        resources_match = (
-            unavail1.resource_id == unavail2.resource_id or
-            self.resource_matches.get(unavail1.resource_id) == unavail2.resource_id or
-            self.resource_matches.get(unavail2.resource_id) == unavail1.resource_id
-        )
-        
-        times_match = unavail1.start_time == unavail2.start_time and unavail1.end_time == unavail2.end_time  
-        
-        return resources_match and times_match
-    
+            
     def _unavailability_needs_update(self, local: Unavailability, master: Unavailability) -> bool:
         """Check if fields other than the key fields have changed."""
-        return (
+        id_match = local.external_id == master.external_id
+        changed = (
+            local.start_time != master.start_time or
+            local.end_time != master.end_time or
             local.reason != master.reason or 
-            local.description != master.description or
-            local.external_id != master.external_id
+            local.description != master.description
         )
+        
+        return id_match and changed
     
     def sync_unavailabilities_for_resource(self, internal_id: UUID, external_id: UUID) -> Dict[str, int]:
         """
@@ -58,19 +53,15 @@ class ResourceSyncService:
         local_unavails = self.local_repo.get_all_for_resource(internal_id)
         master_unavails = self.master_repo.get_all_for_resource(external_id)
         
-        # Update resource IDs for master unavailabilities
-        for unavail in master_unavails:
-            unavail.resource_id = internal_id  # Set to internal for matching
-        
         # Match unavailabilities using the improved matcher
         matched_pairs = []
         unmatched_local = list(local_unavails)
         unmatched_master = list(master_unavails)
         
-        # Find matches
+        # Find matches 
         for master_unavail in list(unmatched_master):
             for local_unavail in list(unmatched_local):
-                if self._unavailabilities_match(local_unavail, master_unavail):
+                if local_unavail.external_id == master_unavail.id:
                     matched_pairs.append((local_unavail, master_unavail))
                     unmatched_master.remove(master_unavail)
                     unmatched_local.remove(local_unavail)
@@ -78,7 +69,9 @@ class ResourceSyncService:
         
         # CREATE (in master but not matched in local)
         for master_unavail in unmatched_master:
-            self.local_repo.create(master_unavail)
+            master_unavail.resource_id = internal_id
+            response = self.local_repo.create(master_unavail)
+            master_unavail.id = response.id
             stats["created"] += 1
             logger.debug(f"Created unavailability: {master_unavail.start_time} - {master_unavail.end_time}")
         
@@ -152,9 +145,13 @@ def main():
          QargoClient(master_token) as master_client:
         
         service = ResourceSyncService(local_client, master_client)
-        stats = service.run()
-        logger.info(f"Final sync stats: {stats}")
-
-
+        service.run()
+        
+        # resources = local_client.get_resources()
+        
+        # unav = []
+        # for r in resources:
+        #     unav += local_client.get_unavailabilities(r['id'])
+        # print(len(unav))
 if __name__ == "__main__":
     main()
