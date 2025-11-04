@@ -23,8 +23,8 @@ class QargoClient:
         Fetch all items from a paginated API endpoint.
         
         Args:
-            url: API endpoint URL
-            params: Additional query parameters (optional)
+            url (str): API endpoint URL
+            params (dict, optional): Additional query parameters 
             
         Returns:
             List of all items from paginated response
@@ -120,15 +120,15 @@ class QargoClient:
             raise ValueError("Cannot update unavailability without an ID")
 
         url = f"{self.BASE_URL}/resources/resource/{unavailability.resource_id}/unavailability/{unavailability.id}"
-        
         payload = {
-            "external_id": str(unavailability.external_id),
             "start_time": unavailability.start_time,
             "end_time": unavailability.end_time,
             "reason": unavailability.reason,
             "description": unavailability.description
         }
-        
+        if unavailability.external_id:
+            payload["external_id"] = str(unavailability.external_id)
+
         try:
             response = self.session.put(url, json=payload)
             response.raise_for_status()
@@ -151,10 +151,14 @@ class QargoClient:
     
     def delete_unavailability(self, resource_id: UUID, unavailability_id: UUID) -> None:
         url = f"{self.BASE_URL}/resources/resource/{resource_id}/unavailability"
-        response = self._delete_item(url, unavailability_id)
+        self._delete_item(url, unavailability_id)
         logger.info(f"Deleted unavailability {unavailability_id} for resource {resource_id}")
 
-    
+
+    def get(self, url):
+        res = self.session.get(url)
+        print(res)
+        
     def __enter__(self):
         return self
     
