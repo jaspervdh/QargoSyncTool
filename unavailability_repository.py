@@ -4,6 +4,7 @@ from uuid import UUID
 from classes.unavailability import Unavailability
 from qargo_client import QargoClient
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -11,17 +12,18 @@ logger = logging.getLogger(__name__)
 class UnavailabilityRepository:
     """Repository for managing unavailability data and CRUD operations."""
     
-    def __init__(self, client: QargoClient):
+    def __init__(self, client: QargoClient, internal: bool = False):
         self.client = client
+        self.internal = internal
     
-    def get_all_for_resource(self, resource_id: UUID) -> List[Unavailability]:
+    def get_all_for_resource(self, resource_id: UUID, start_time: datetime = None, end_time: datetime = None) -> List[Unavailability]:
         """Fetch all unavailabilities for a resource and convert to domain objects."""
-        data = self.client.get_unavailabilities(resource_id)
-        # verwarrend aangezien ook naar eigen wordt geroepen
+        data = self.client.get_unavailabilities(resource_id, start_time, end_time)
         return [
             Unavailability(
+                id=item["id"],
                 resource_id=resource_id,
-                external_id=item["id"], 
+                external_id=item["external_id"] if self.internal else item["id"], 
                 start_time=item["start_time"],
                 end_time=item["end_time"],
                 reason=item.get("reason", ""),
@@ -41,7 +43,7 @@ class UnavailabilityRepository:
         if not unavailability.id:
             raise ValueError("Cannot update unavailability without ID")
         
-        self.client.update_unavailability(unavailability.id, unavailability)
+        self.client.update_unavailability(unavailability)
         return unavailability
     
     def delete(self, resource_id: UUID, unavailability_id: UUID) -> bool:

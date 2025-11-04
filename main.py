@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import os
 import logging
 from typing import Dict
@@ -23,10 +24,7 @@ class ResourceSyncService:
         self.local_repo = UnavailabilityRepository(local_client, internal=True)
         self.master_repo = UnavailabilityRepository(master_client, internal=False)
         local_resources = self.local_repo.client.get_resources()
-        master_resources = self.master_repo.client.get_resources()
-        
-        print(local_resources)
-        
+        master_resources = self.master_repo.client.get_resources()        
         matcher = ResourceMatcher(master_resources)
         self.resource_matches = matcher.match_all(local_resources)
             
@@ -49,9 +47,11 @@ class ResourceSyncService:
         """
         stats = {"created": 0, "updated": 0, "deleted": 0, "unchanged": 0}
         
+        start_time = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        
         # Fetch from both APIs
-        local_unavails = self.local_repo.get_all_for_resource(internal_id)
-        master_unavails = self.master_repo.get_all_for_resource(external_id)
+        local_unavails = self.local_repo.get_all_for_resource(internal_id, start_time)
+        master_unavails = self.master_repo.get_all_for_resource(external_id, start_time)
         
         # Match unavailabilities using the improved matcher
         matched_pairs = []
@@ -147,11 +147,5 @@ def main():
         service = ResourceSyncService(local_client, master_client)
         service.run()
         
-        # resources = local_client.get_resources()
-        
-        # unav = []
-        # for r in resources:
-        #     unav += local_client.get_unavailabilities(r['id'])
-        # print(len(unav))
 if __name__ == "__main__":
     main()

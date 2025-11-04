@@ -1,5 +1,5 @@
 import logging
-from sqlite3.dbapi2 import Timestamp
+from datetime import datetime
 import requests
 from typing import Optional
 from uuid import UUID
@@ -69,7 +69,7 @@ class QargoClient:
         logger.info(f"Retrieved {len(resources)} resources from API")
         return resources
 
-    def get_unavailabilities(self, resource_id: UUID, start_time: Timestamp = None, end_time: Timestamp = None) -> list[dict]:
+    def get_unavailabilities(self, resource_id: UUID, start_time: datetime = None, end_time: datetime = None) -> list[dict]:
         """
         Fetch all unavailabilities of a resource from the API using cursor-based pagination.
         

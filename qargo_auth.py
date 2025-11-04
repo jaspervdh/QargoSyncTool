@@ -4,7 +4,7 @@ import time
 import base64
 import requests
 import logging
-import datetime
+from datetime import datetime
 
 AUTH_URL = "https://api.qargo.com/v1/auth/token"
 TOKEN_CACHE_FILE = ".qargo_token.json" 
@@ -38,8 +38,6 @@ class QargoAuth:
             "Content-Type": "application/json",
             "Authorization": f"Basic {encoded_credentials}"
         }
-        print(credentials)
-        print(headers)
         
         response = requests.post(AUTH_URL, headers=headers)
         
@@ -59,7 +57,7 @@ class QargoAuth:
             raise Exception(f"Token not available in data: {data}")    
 
         self.token_expiry_time = time.time() + expires_in - TOKEN_REFRESH_BUFFER
-        logger.debug(f"Fetched new API token, expires on {datetime.datetime.fromtimestamp(self.token_expiry_time)}")
+        logger.debug(f"Fetched new API token, expires on {datetime.fromtimestamp(self.token_expiry_time)}")
             
     def _save_cached_token(self):
             """Save the token and its expiry to disk."""
@@ -94,7 +92,7 @@ class QargoAuth:
             if entry.get("token") and time.time() < entry.get("token_expiry_time", 0):
                 self.token = entry["token"]
                 self.token_expiry_time = entry["token_expiry_time"]
-                logger.debug(f"Loaded valid cached token, expires on {datetime.datetime.fromtimestamp(self.token_expiry_time)}")
+                logger.debug(f"Loaded valid cached token, expires on {datetime.fromtimestamp(self.token_expiry_time)}")
         except Exception as e:
             logger.warning(f"Failed to read cached token: {e}")
             
